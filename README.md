@@ -1,4 +1,4 @@
-This is a fork of github.com/pkoukk/tiktoken-go
+This is a fork of github.com/pkoukk/tiktoken-go . The original project is no longer maintained and does not support the latest OpenAi embedding models. We will actively maintain this project.
 
 # tiktoken-go
 OpenAI's tiktoken in Go. 
