@@ -1,6 +1,6 @@
-# tiktoken-go
-[简体中文](./README_zh-hans.md)
+This is a fork of github.com/pkoukk/tiktoken-go . The original project is no longer maintained and does not support the latest OpenAi embedding models. We will actively maintain this project.
 
+# tiktoken-go
 OpenAI's tiktoken in Go. 
 
 Tiktoken is a fast BPE tokeniser for use with OpenAI's models.
@@ -11,7 +11,7 @@ This is a port of the original [tiktoken](https://github.com/openai/tiktoken).
 ## Install
 
 ```bash
-go get github.com/pkoukk/tiktoken-go
+go get github.com/weaviate/tiktoken-go
 ```
 ## Cache
 Tiktoken-go has the same cache mechanism as the original Tiktoken library.  
@@ -44,7 +44,7 @@ package main
 
 import (
     "fmt"
-    "github.com/pkoukk/tiktoken-go"
+    "github.com/weaviate/tiktoken-go"
 )
 
 func main()  {
@@ -76,7 +76,7 @@ package main
 
 import (
     "fmt"
-    "github.com/pkoukk/tiktoken-go"
+    "github.com/weaviate/tiktoken-go"
 )
 
 func main()  {
@@ -117,7 +117,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/pkoukk/tiktoken-go"
+	"github.com/weaviate/tiktoken-go"
 	"github.com/sashabaranov/go-openai"
 )
 
