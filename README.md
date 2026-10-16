@@ -13,28 +13,13 @@ This is a port of the original [tiktoken](https://github.com/openai/tiktoken).
 ```bash
 go get github.com/weaviate/tiktoken-go
 ```
-## Cache
-Tiktoken-go has the same cache mechanism as the original Tiktoken library.  
-
-You can set the cache directory by using the environment variable TIKTOKEN_CACHE_DIR.   
-
-Once this variable is set, tiktoken-go will use this directory to cache the token dictionary.   
-
-If you don't set this environment variable, tiktoken-go will download the dictionary each time you initialize an encoding for the first time.  
+## Vocabularies
+The BPE vocabularies of all supported encodings (`o200k_base`, `cl100k_base`, `p50k_base`, `r50k_base`) are embedded in the module, so loading an encoding never downloads anything at runtime.
 
 ## Alternative BPE loaders
-If you don't want to use cache or download the dictionary each time, you can use alternative BPE loader.
-
-Just call `tiktoken.SetBpeLoader` before calling `tiktoken.GetEncoding` or `tiktoken.EncodingForModel`.
+To load vocabularies from elsewhere, call `tiktoken.SetBpeLoader` before calling `tiktoken.GetEncoding` or `tiktoken.EncodingForModel`.
 
 `BpeLoader` is an interface, you can implement your own BPE loader by implementing this interface.
-
-### Offline BPE loader
-The offline BPE loader loads the BPE dictionary from embed files, it helps if you don't want to download the dictionary at runtime.  
-
-Due to the size of the BPE dictionary, this loader is in other project.
-
-Include if you require this loader: [tiktoken_loader](https://github.com/pkoukk/tiktoken-go-loader)
 
 ## Examples
 ### Get Token By Encoding
@@ -51,8 +36,6 @@ func main()  {
 	text := "Hello, world!"
 	encoding := "cl100k_base"
 
-	// if you don't want download dictionary at runtime, you can use offline loader
-	// tiktoken.SetBpeLoader(tiktoken_loader.NewOfflineLoader())
 	tke, err := tiktoken.GetEncoding(encoding)
 	if err != nil {
 		err = fmt.Errorf("getEncoding: %v", err)
