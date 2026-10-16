@@ -1,107 +1,73 @@
 package tiktoken
 
 import (
-	"crypto/sha1"
+	"bytes"
+	"compress/gzip"
+	"embed"
 	"encoding/base64"
 	"fmt"
-	"io/ioutil"
-	"net/http"
-	"os"
-	"path/filepath"
+	"io"
+	"path"
 	"strconv"
 	"strings"
-
-	"github.com/google/uuid"
 )
+
+// The vocabularies are the files OpenAI publishes under
+// https://openaipublic.blob.core.windows.net/encodings/, gzipped. They are
+// embedded so that loading an encoding never touches the network.
+//
+//go:embed assets/*.tiktoken.gz
+var assets embed.FS
 
 type BpeLoader interface {
 	LoadTiktokenBpe(tiktokenBpeFile string) (map[string]int, error)
 }
 
-func readFile(blobpath string) ([]byte, error) {
-	if !strings.HasPrefix(blobpath, "http://") && !strings.HasPrefix(blobpath, "https://") {
-		file, err := os.Open(blobpath)
-		if err != nil {
-			return nil, err
-		}
-		defer file.Close()
-		return ioutil.ReadAll(file)
-	}
-	// avoiding blobfile for public files helps avoid auth issues, like MFA prompts
-	resp, err := http.Get(blobpath)
+// defaultBpeLoader serves the embedded vocabulary named by the base of
+// tiktokenBpeFile, e.g. ".../encodings/cl100k_base.tiktoken".
+type defaultBpeLoader struct{}
+
+func (l *defaultBpeLoader) LoadTiktokenBpe(tiktokenBpeFile string) (map[string]int, error) {
+	compressed, err := assets.ReadFile("assets/" + path.Base(tiktokenBpeFile) + ".gz")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("no embedded vocabulary for %s: %w", tiktokenBpeFile, err)
 	}
-	defer resp.Body.Close()
-	return ioutil.ReadAll(resp.Body)
+	zr, err := gzip.NewReader(bytes.NewReader(compressed))
+	if err != nil {
+		return nil, fmt.Errorf("decompress vocabulary %s: %w", tiktokenBpeFile, err)
+	}
+	defer zr.Close()
+	contents, err := io.ReadAll(zr)
+	if err != nil {
+		return nil, fmt.Errorf("decompress vocabulary %s: %w", tiktokenBpeFile, err)
+	}
+	return parseTiktokenBpe(contents)
 }
 
-func readFileCached(blobpath string) ([]byte, error) {
-	var cacheDir string
-	if os.Getenv("TIKTOKEN_CACHE_DIR") != "" {
-		cacheDir = os.Getenv("TIKTOKEN_CACHE_DIR")
-	} else if os.Getenv("DATA_GYM_CACHE_DIR") != "" {
-		cacheDir = os.Getenv("DATA_GYM_CACHE_DIR")
-	} else {
-		cacheDir = filepath.Join(os.TempDir(), "data-gym-cache")
-	}
-
-	if cacheDir == "" {
-		// disable caching
-		return readFile(blobpath)
-	}
-
-	cacheKey := fmt.Sprintf("%x", sha1.Sum([]byte(blobpath)))
-
-	cachePath := filepath.Join(cacheDir, cacheKey)
-	if _, err := os.Stat(cachePath); err == nil {
-		return ioutil.ReadFile(cachePath)
-	}
-
-	contents, err := readFile(blobpath)
-	if err != nil {
-		return nil, err
-	}
-
-	os.MkdirAll(cacheDir, os.ModePerm)
-	tmpFilename := cachePath + "." + uuid.New().String() + ".tmp"
-	if err := ioutil.WriteFile(tmpFilename, contents, os.ModePerm); err != nil {
-		return nil, err
-	}
-	return contents, os.Rename(tmpFilename, cachePath)
+func NewDefaultBpeLoader() BpeLoader {
+	return &defaultBpeLoader{}
 }
 
-func loadTiktokenBpe(tiktokenBpeFile string) (map[string]int, error) {
-	contents, err := readFileCached(tiktokenBpeFile)
-	if err != nil {
-		return nil, err
-	}
-
+// parseTiktokenBpe decodes "<base64 token> <rank>" lines.
+func parseTiktokenBpe(contents []byte) (map[string]int, error) {
 	bpeRanks := make(map[string]int)
 	for _, line := range strings.Split(string(contents), "\n") {
 		if line == "" {
 			continue
 		}
-		parts := strings.Split(line, " ")
-		token, err := base64.StdEncoding.DecodeString(parts[0])
-		if err != nil {
-			return nil, err
+		encodedToken, encodedRank, ok := strings.Cut(line, " ")
+		if !ok {
+			return nil, fmt.Errorf("malformed vocabulary line %q", line)
 		}
-		rank, err := strconv.Atoi(parts[1])
+		token, err := base64.StdEncoding.DecodeString(encodedToken)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("malformed vocabulary line %q: %w", line, err)
+		}
+		rank, err := strconv.Atoi(encodedRank)
+		if err != nil {
+			return nil, fmt.Errorf("malformed vocabulary line %q: %w", line, err)
 		}
 		bpeRanks[string(token)] = rank
 	}
 	return bpeRanks, nil
-}
-
-type defaultBpeLoader struct{}
-
-func (l *defaultBpeLoader) LoadTiktokenBpe(tiktokenBpeFile string) (map[string]int, error) {
-	return loadTiktokenBpe(tiktokenBpeFile)
-}
-
-func NewDefaultBpeLoader() BpeLoader {
-	return &defaultBpeLoader{}
 }
